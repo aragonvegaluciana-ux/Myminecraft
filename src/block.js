@@ -280,6 +280,7 @@ export function createTextureAtlas(scene) {
         [TILE.BEDROCK]: 'bedrock.png'
     };
 
+    /* --- CARGA ASINCRONA DESACTIVADA PARA DIAGNOSTICO ---
     const loadPromises = Object.entries(tileNames).map(([tileId, fileName]) => {
         return new Promise((resolve) => {
             const img = new Image();
@@ -312,6 +313,7 @@ export function createTextureAtlas(scene) {
             dynTex.update(false);
         }
     });
+    */
 
     return dynTex;
 }
