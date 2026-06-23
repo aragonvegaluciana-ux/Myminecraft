@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyMinecraft – Mundo Voxel con Antigravedad</title>
+    <meta name="description" content="Videojuego 3D voxel inspirado en Minecraft con sistema de antigravedad. Construye, explora y desafía la gravedad en tu navegador.">
+    <meta name="theme-color" content="#0a0a0a">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <!-- Babylon.js CDN -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+
+<style>
+/* ===== RESET & BASE ===== */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --gold:#FFD700;--gold-dark:#B8860B;
+  --bg-dark:rgba(0,0,0,0.68);--bg-darker:rgba(0,0,0,0.85);
+  --text:#FFFDE7;--accent:#4CAF50;--danger:#F44336;
+  --px:'Press Start 2P',monospace;
+  --slot:58px;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:var(--px)}
+a{color:inherit}
+
+/* ===== CANVAS ===== */
+#renderCanvas{
+  position:fixed;inset:0;width:100vw;height:100vh;
+  display:block;cursor:crosshair;touch-action:none;
+}
+
+/* ===== LOADING ===== */
+#loading-screen{
+  position:fixed;inset:0;z-index:1000;
+  background:linear-gradient(135deg,#0a0a0a 0%,#0d1f0a 50%,#0a0f0a 100%);
+  display:flex;align-items:center;justify-content:center;
+  transition:opacity .8s ease;
+}
+#loading-screen.hidden{opacity:0;pointer-events:none}
+.lc{text-align:center;color:var(--text)}
+.lc h1{
+  font-size:clamp(24px,5vw,46px);color:var(--gold);
+  text-shadow:0 0 24px rgba(255,215,0,.65),4px 4px 0 #7B6000;
+  margin-bottom:8px;animation:titlePulse 2s ease-in-out infinite;
+}
+.lc .sub{
+  font-size:8px;color:var(--accent);letter-spacing:4px;
+  margin-bottom:28px;
+}
+.lbar{
+  width:320px;height:16px;border:3px solid var(--gold);
+  border-radius:2px;background:rgba(0,0,0,.5);overflow:hidden;
+  margin:0 auto 12px;box-shadow:0 0 12px rgba(255,215,0,.3);
+}
+.lprog{
+  height:100%;
+  background:linear-gradient(90deg,#4CAF50,#8BC34A,#CDDC39);
+  width:0%;transition:width .4s ease;
+}
+.ltip{font-size:8px;color:rgba(255,255,255,.45);line-height:2;max-width:340px;margin:0 auto}
+
+/* ===== UI OVERLAY ===== */
+#ui-overlay{position:fixed;inset:0;pointer-events:none;z-index:100}
+
+/* crosshair */
+#crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px}
+.ch-h{position:absolute;top:50%;left:0;transform:translateY(-50%);width:100%;height:2px;background:rgba(255,255,255,.85);box-shadow:0 0 3px rgba(0,0,0,.8)}
+.ch-v{position:absolute;left:50%;top:0;transform:translateX(-50%);width:2px;height:100%;background:rgba(255,255,255,.85);box-shadow:0 0 3px rgba(0,0,0,.8)}
+
+/* hotbar */
+#hotbar{
+  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;gap:4px;background:var(--bg-darker);
+  padding:6px;border:2px solid #555;border-radius:4px;
+  box-shadow:0 4px 24px rgba(0,0,0,.7);
+}
+.hs{
+  width:var(--slot);height:var(--slot);
+  background:rgba(20,20,20,.8);border:2px solid #444;border-radius:3px;
+  position:relative;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  transition:transform .1s,border-color .15s;cursor:default;
+}
+.hs.active{
+  border-color:var(--gold);
+  box-shadow:0 0 12px rgba(255,215,0,.5),inset 0 0 8px rgba(255,215,0,.1);
+  transform:translateY(-3px);
+}
+.hs .sn{position:absolute;top:3px;left:5px;font-size:7px;color:rgba(255,255,255,.5);line-height:1}
+.hs .si{font-size:26px;line-height:1}
+.hs .sl{font-size:5px;color:rgba(255,255,255,.35);margin-top:2px;text-align:center;max-width:90%;white-space:nowrap;overflow:hidden}
+.hs.active .sl{color:var(--gold)}
+
+/* HUD */
+#hud{position:absolute;top:16px;left:16px;display:flex;flex-direction:column;gap:6px}
+.hi{
+  background:var(--bg-dark);color:var(--text);font-size:9px;
+  padding:6px 10px;border-radius:3px;border-left:3px solid var(--accent);
+  letter-spacing:.5px;line-height:1.5;
+}
+#gravity-indicator{border-left-color:#7C4DFF}
+#gravity-indicator.inv{border-left-color:#FF4081}
+#gravity-indicator.side{border-left-color:#FF6D00}
+
+/* controls help */
+#controls-help{
+  position:absolute;bottom:100px;right:16px;
+  background:var(--bg-dark);color:rgba(255,255,255,.5);
+  font-size:7px;padding:10px 14px;border-radius:4px;
+  line-height:2;border:1px solid rgba(255,255,255,.1);max-width:240px;
+}
+#controls-help span{color:var(--gold)}
+
+/* pause menu */
+#pause-menu{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.75);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;
+}
+#pause-menu.hidden{display:none}
+.mp{
+  background:linear-gradient(160deg,#1a1a1a,#111);
+  border:2px solid var(--gold);border-radius:6px;
+  padding:40px 60px;text-align:center;min-width:320px;
+  box-shadow:0 0 40px rgba(255,215,0,.2),0 20px 60px rgba(0,0,0,.8);
+}
+.mp h2{font-size:22px;color:var(--gold);text-shadow:0 0 10px rgba(255,215,0,.4);margin-bottom:8px}
+.mp .ws{font-size:8px;color:rgba(255,255,255,.35);margin-bottom:28px}
+.mb{
+  display:block;width:100%;padding:12px 24px;margin-bottom:12px;
+  background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.2);
+  border-radius:4px;color:var(--text);font-family:var(--px);font-size:10px;
+  cursor:pointer;transition:all .15s;pointer-events:all;letter-spacing:1px;
+}
+.mb:hover{background:rgba(255,215,0,.1);border-color:var(--gold);color:var(--gold);transform:translateX(4px)}
+.mb.primary{background:rgba(76,175,80,.15);border-color:var(--accent);color:var(--accent)}
+.mb.primary:hover{background:rgba(76,175,80,.3)}
+
+/* notification */
+#notification{
+  position:fixed;top:60px;left:50%;
+  transform:translateX(-50%) translateY(-20px);
+  background:var(--bg-darker);color:var(--text);font-size:9px;
+  padding:12px 24px;border-radius:4px;border:1px solid rgba(255,255,255,.2);
+  opacity:0;pointer-events:none;z-index:600;white-space:nowrap;
+  transition:opacity .3s,transform .3s;
+}
+#notification.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#notification.success{border-color:var(--accent)}
+#notification.warning{border-color:var(--gold)}
+#notification.error{border-color:var(--danger)}
+
+/* vignette */
+#vignette{
+  position:fixed;inset:0;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.42) 100%);
+  pointer-events:none;z-index:99;
+}
+
+/* block highlight indicator */
+#blk-info{
+  position:fixed;bottom:105px;left:50%;transform:translateX(-50%);
+  font-size:8px;color:rgba(255,255,255,.55);pointer-events:none;z-index:101;
+  background:var(--bg-dark);padding:4px 12px;border-radius:3px;
+  display:none;
+}
+
+/* click to play */
+#ctp{
+  position:fixed;inset:0;z-index:200;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+}
+#ctp-inner{
+  background:rgba(0,0,0,.72);border:2px solid rgba(255,215,0,.6);
+  border-radius:6px;padding:20px 40px;font-size:12px;color:var(--gold);
+  text-align:center;line-height:2;pointer-events:none;transition:opacity .5s;
+}
+#ctp-inner small{font-size:8px;color:rgba(255,255,255,.45)}
+
+/* animations */
+@keyframes titlePulse{
+  0%,100%{text-shadow:0 0 20px rgba(255,215,0,.6),4px 4px 0 #7B6000}
+  50%{text-shadow:0 0 40px rgba(255,215,0,.9),4px 4px 0 #7B6000}
+}
+@keyframes gFlash{
+  0%{box-shadow:none}
+  50%{box-shadow:0 0 30px 10px rgba(124,77,255,.6)}
+  100%{box-shadow:none}
+}
+.gflash{animation:gFlash .5s ease-out}
+
+/* ── Health Bar & Damage Effects ──────────── */
+#health-bar {
+  position: absolute;
+  bottom: 84px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 4px;
+  background: var(--bg-darker);
+  padding: 4px 8px;
+  border: 2px solid #555;
+  border-radius: 4px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+.heart {
+  font-size: 16px;
+  display: inline-block;
+  user-select: none;
+}
+#damage-flash {
+  position: fixed; inset: 0;
+  background: radial-gradient(circle, transparent 20%, rgba(255, 0, 0, 0.45) 100%);
+  pointer-events: none;
+  z-index: 105;
+  opacity: 0;
+  transition: opacity 0.25s ease-out;
+}
+#damage-flash.active {
+  opacity: 1;
+  transition: none;
+}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading-screen">
+  <div class="lc">
+    <h1>MyMinecraft</h1>
+    <p class="sub">Antigravedad Edition</p>
+    <div class="lbar"><div class="lprog" id="lprog"></div></div>
+    <p class="ltip" id="ltip">Iniciando motor 3D…</p>
+  </div>
+</div>
+
+<!-- 3D Canvas -->
+<canvas id="renderCanvas"></canvas>
+<div id="vignette"></div>
+
+<!-- UI -->
+<div id="ui-overlay">
+  <div id="crosshair"><div class="ch-h"></div><div class="ch-v"></div></div>
+
+  <div id="hud">
+    <div class="hi" id="gravity-indicator">⬇ Gravedad Normal</div>
+    <div class="hi" id="coords-display">X 0  Y 0  Z 0</div>
+    <div class="hi" id="fps-counter">FPS –</div>
+  </div>
+
+  <div id="hotbar"></div>
+
+  <div id="controls-help">
+    <span>WASD</span> Mover &nbsp; <span>Espacio</span> Saltar<br>
+    <span>G</span> Cambiar gravedad<br>
+    <span>1–9</span> Seleccionar bloque &nbsp; <span>Rueda</span> Scroll<br>
+    <span>Click izq</span> Romper &nbsp; <span>Click der</span> Colocar<br>
+    <span>ESC</span> Pausar &nbsp; <span>F5</span> Guardar &nbsp; <span>H</span> Ocultar
+  </div>
+</div>
+
+<div id="blk-info"></div>
+
+<!-- Pause menu -->
+<div id="pause-menu" class="hidden">
+  <div class="mp">
+    <h2>MyMinecraft</h2>
+    <p class="ws">⏸ Pausado</p>
+    <button class="mb primary" id="resume-btn">▶ Continuar</button>
+    <button class="mb" id="save-btn">💾 Guardar Mundo</button>
+    <button class="mb" id="load-btn">📂 Cargar Mundo</button>
+  </div>
+</div>
+
+<div id="notification"></div>
+
+<!-- Click to play -->
+<div id="ctp">
+  <div id="ctp-inner">
+    Haz clic para jugar<br>
+    <small>Click para capturar el ratón</small>
+  </div>
+</div>
+
+<!-- ==================== GAME SCRIPT ==================== -->
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════
+//  BLOCK DEFINITIONS
+// ════════════════════════════════════════════════
+const BlockType = { AIR:0,GRASS:1,DIRT:2,STONE:3,WOOD:4,LEAVES:5,SAND:6,GLASS:7,BRICK:8,SNOW:9,BEDROCK:10 };
+
+const TILE = { GRASS_TOP:0,GRASS_SIDE:1,DIRT:2,STONE:3,WOOD_TOP:4,WOOD_SIDE:5,LEAVES:6,SAND:7,GLASS:8,BRICK:9,SNOW_TOP:10,SNOW_SIDE:11,BEDROCK:12 };
+
+const BlockAtlas = {
+    [BlockType.GRASS]:   {top:TILE.GRASS_TOP, side:TILE.GRASS_SIDE, bottom:TILE.DIRT},
+    [BlockType.DIRT]:    {top:TILE.DIRT,      side:TILE.DIRT,       bottom:TILE.DIRT},
+    [BlockType.STONE]:   {top:TILE.STONE,     side:TILE.STONE,      bottom:TILE.STONE},
+    [BlockType.WOOD]:    {top:TILE.WOOD_TOP,  side:TILE.WOOD_SIDE,  bottom:TILE.WOOD_TOP},
+    [BlockType.LEAVES]:  {top:TILE.LEAVES,    side:TILE.LEAVES,     bottom:TILE.LEAVES},
+    [BlockType.SAND]:    {top:TILE.SAND,      side:TILE.SAND,       bottom:TILE.SAND},
+    [BlockType.GLASS]:   {top:TILE.GLASS,     side:TILE.GLASS,      bottom:TILE.GLASS},
+    [BlockType.BRICK]:   {top:TILE.BRICK,     side:TILE.BRICK,      bottom:TILE.BRICK},
+    [BlockType.SNOW]:    {top:TILE.SNOW_TOP,  side:TILE.SNOW_SIDE,  bottom:TILE.DIRT},
+    [BlockType.BEDROCK]: {top:TILE.BEDROCK,   side:TILE.BEDROCK,    bottom:TILE.BEDROCK},
+};
+
+const BlockProps = {
+    [BlockType.AIR]:     {solid:false,transparent:true, name:'Aire',     icon:'🌫️'},
+    [BlockType.GRASS]:   {solid:true, transparent:false,name:'Césped',   icon:'🟩'},
+    [BlockType.DIRT]:    {solid:true, transparent:false,name:'Tierra',   icon:'🟫'},
+    [BlockType.STONE]:   {solid:true, transparent:false,name:'Piedra',   icon:'⬜'},
+    [BlockType.WOOD]:    {solid:true, transparent:false,name:'Madera',   icon:'🟤'},
+    [BlockType.LEAVES]:  {solid:true, transparent:true, name:'Hojas',    icon:'🌿'},
+    [BlockType.SAND]:    {solid:true, transparent:false,name:'Arena',    icon:'🟡'},
+    [BlockType.GLASS]:   {solid:true, transparent:true, name:'Vidrio',   icon:'💠'},
+    [BlockType.BRICK]:   {solid:true, transparent:false,name:'Ladrillo', icon:'🧱'},
+    [BlockType.SNOW]:    {solid:true, transparent:false,name:'Nieve',    icon:'❄️'},
+    [BlockType.BEDROCK]: {solid:true, transparent:false,name:'Bedrock',  icon:'⬛'},
+};
+
+const HOTBAR_BLOCKS=[BlockType.GRASS,BlockType.DIRT,BlockType.STONE,BlockType.WOOD,BlockType.LEAVES,BlockType.SAND,BlockType.GLASS,BlockType.BRICK,BlockType.SNOW];
+
+// Atlas UV helper
+const ATLAS_COLS=16;
+function tileUV(id){
+    const col=id%ATLAS_COLS, row=Math.floor(id/ATLAS_COLS);
+    return {u0:col/ATLAS_COLS,u1:(col+1)/ATLAS_COLS,v0:1-(row+1)/ATLAS_COLS,v1:1-row/ATLAS_COLS};
+}
+
+// ════════════════════════════════════════════════
+//  TEXTURE ATLAS (Canvas 2D pixel art)
+// ════════════════════════════════════════════════
+function createAtlas(scene){
+    const SZ=256, TSZ=16;
+    const dyn=new BABYLON.DynamicTexture('atlas',{width:SZ,height:SZ},scene,false,BABYLON.Texture.NEAREST_SAMPLINGMODE);
+    const ctx=dyn.getContext();
+    ctx.clearRect(0,0,SZ,SZ);
+
+    function tO(id){return{tx:(id%ATLAS_COLS)*TSZ,ty:Math.floor(id/ATLAS_COLS)*TSZ};}
+    function clp(v){return Math.max(0,Math.min(255,v))|0;}
+    function noisy(tx,ty,r,g,b,va=15){
+        for(let py=0;py<TSZ;py++)for(let px=0;px<TSZ;px++){
+            const v=(Math.random()*2-1)*va;
+            ctx.fillStyle=`rgb(${clp(r+v)},${clp(g+v)},${clp(b+v)})`;
+            ctx.fillRect(tx+px,ty+py,1,1);
+        }
+    }
+
+    // 0 Grass top
+    let{tx,ty}=tO(TILE.GRASS_TOP); noisy(tx,ty,72,148,45,18);
+    // 1 Grass side
+    ({tx,ty}=tO(TILE.GRASS_SIDE));
+    for(let py=0;py<TSZ;py++)for(let px=0;px<TSZ;px++){
+        const v=(Math.random()*2-1)*12;
+        const[r,g,b]=py<4?[72,148,45]:[134,96,67];
+        ctx.fillStyle=`rgb(${clp(r+v)},${clp(g+v)},${clp(b+v)})`;
+        ctx.fillRect(tx+px,ty+py,1,1);
+    }
+    // 2 Dirt
+    ({tx,ty}=tO(TILE.DIRT)); noisy(tx,ty,134,96,67,14);
+    // 3 Stone
+    ({tx,ty}=tO(TILE.STONE)); noisy(tx,ty,118,118,118,20);
+    ctx.fillStyle='#707070';
+    for(let i=0;i<5;i++)ctx.fillRect(tx+(Math.random()*12)|0,ty+(Math.random()*12)|0,(Math.random()*4+2)|0,1);
+    // 4 Wood top (rings)
+    ({tx,ty}=tO(TILE.WOOD_TOP));
+    for(let py=0;py<TSZ;py++)for(let px=0;px<TSZ;px++){
+        const dx=px-7.5,dy=py-7.5,d=Math.sqrt(dx*dx+dy*dy);
+        const ring=(d%3.5)<1.8;const v=(Math.random()*2-1)*10;
+        const[r,g,b]=ring?[118,76,36]:[156,106,56];
+        ctx.fillStyle=`rgb(${clp(r+v)},${clp(g+v)},${clp(b+v)})`;ctx.fillRect(tx+px,ty+py,1,1);
+    }
+    // 5 Wood side (stripes)
+    ({tx,ty}=tO(TILE.WOOD_SIDE));
+    for(let py=0;py<TSZ;py++)for(let px=0;px<TSZ;px++){
+        const s=(px%4)<2;const v=(Math.random()*2-1)*10;
+        const[r,g,b]=s?[138,93,48]:[166,116,64];
+        ctx.fillStyle=`rgb(${clp(r+v)},${clp(g+v)},${clp(b+v)})`;ctx.fillRect(tx+px,ty+py,1,1);
+    }
+    // 6 Leaves
+    ({tx,ty}=tO(TILE.LEAVES));
+    for(let py=0;py<TSZ;py++)for(let px=0;px<TSZ;px++){
+        if(Math.random()>0.18){const v=(Math.random()*2-1)*22;ctx.fillStyle=`rgb(${clp(36+v)},${clp(102+v)},${clp(28+v)})`;ctx.fillRect(tx+px,ty+py,1,1);}
+    }
+    // 7 Sand
+    ({tx,ty}=tO(TILE.SAND)); noisy(tx,ty,210,190,138,14);
+    // 8 Glass
+    ({tx,ty}=tO(TILE.GLASS));
+    ctx.fillStyle='rgba(160,215,255,0.55)';ctx.fillRect(tx,ty,TSZ,TSZ);
+    ctx.fillStyle='rgba(220,240,255,0.9)';
+    ctx.fillRect(tx,ty,TSZ,2);ctx.fillRect(tx,ty+TSZ-2,TSZ,2);
+    ctx.fillRect(tx,ty,2,TSZ);ctx.fillRect(tx+TSZ-2,ty,2,TSZ);
+    // 9 Brick
+    ({tx,ty}=tO(TILE.BRICK)); noisy(tx,ty,176,70,52,14);
+    ctx.fillStyle='#c0b0a8';
+    for(let py=0;py<TSZ;py+=8)ctx.fillRect(tx,ty+py,TSZ,2);
+    for(let row=0;row<2;row++){const off=row%2===0?8:0;for(let px=off;px<TSZ;px+=16)ctx.fillRect(tx+px,ty+row*8+2,2,4);}
+    // 10 Snow top
+    ({tx,ty}=tO(TILE.SNOW_TOP)); noisy(tx,ty,234,244,255,10);
+    // 11 Snow side
+    ({tx,ty}=tO(TILE.SNOW_SIDE));
+    for(let py=0;py<TSZ;py++)for(let px=0;px<TSZ;px++){
+        const v=(Math.random()*2-1)*10;
+        const[r,g,b]=py<4?[234,244,255]:[134,96,67];
+        ctx.fillStyle=`rgb(${clp(r+v)},${clp(g+v)},${clp(b+v)})`;ctx.fillRect(tx+px,ty+py,1,1);
+    }
+    // 12 Bedrock
+    ({tx,ty}=tO(TILE.BEDROCK)); noisy(tx,ty,38,38,42,12);
+    ctx.fillStyle='#1a1a1e';
+    for(let i=0;i<6;i++)ctx.fillRect(tx+(Math.random()*12)|0,ty+(Math.random()*12)|0,(Math.random()*4+2)|0,(Math.random()*4+2)|0);
+
+    dyn.update(false);
+    dyn.wrapU=BABYLON.Texture.CLAMP_ADDRESSMODE;
+    dyn.wrapV=BABYLON.Texture.CLAMP_ADDRESSMODE;
+
+    // --- CARGA ASÍNCRONA DE PAQUETE DE TEXTURAS ---
+    const tileNames = {
+        [TILE.GRASS_TOP]: 'grass_top.png',
+        [TILE.GRASS_SIDE]: 'grass_side.png',
+        [TILE.DIRT]: 'dirt.png',
+        [TILE.STONE]: 'stone.png',
+        [TILE.WOOD_TOP]: 'wood_top.png',
+        [TILE.WOOD_SIDE]: 'wood_side.png',
+        [TILE.LEAVES]: 'leaves.png',
+        [TILE.SAND]: 'sand.png',
+        [TILE.GLASS]: 'glass.png',
+        [TILE.BRICK]: 'brick.png',
+        [TILE.SNOW_TOP]: 'snow_top.png',
+        [TILE.SNOW_SIDE]: 'snow_side.png',
+        [TILE.BEDROCK]: 'bedrock.png'
+    };
+
+    Object.entries(tileNames).forEach(([tileId, fileName]) => {
+        const img = new Image();
+        img.onload = () => {
+            const { tx, ty } = tO(parseInt(tileId));
+            ctx.clearRect(tx, ty, TSZ, TSZ);
+            ctx.drawImage(img, tx, ty, TSZ, TSZ);
+            dyn.update(false);
+            console.log(`[Textura cargada]: textures/${fileName}`);
+        };
+        img.src = `textures/${fileName}`;
+    });
+
+    return dyn;
+}
+
+// ════════════════════════════════════════════════
+//  CHUNK
+// ════════════════════════════════════════════════
+const CHUNK_SIZE=16;
+const FACES=[
+    {dir:[0,1,0], n:[0,1,0], key:'top',    v:[[0,1,0],[0,1,1],[1,1,1],[1,1,0]]},
+    {dir:[0,-1,0],n:[0,-1,0],key:'bottom', v:[[0,0,1],[0,0,0],[1,0,0],[1,0,1]]},
+    {dir:[0,0,1], n:[0,0,1], key:'side',   v:[[0,0,1],[1,0,1],[1,1,1],[0,1,1]]},
+    {dir:[0,0,-1],n:[0,0,-1],key:'side',   v:[[1,0,0],[0,0,0],[0,1,0],[1,1,0]]},
+    {dir:[1,0,0], n:[1,0,0], key:'side',   v:[[1,0,1],[1,0,0],[1,1,0],[1,1,1]]},
+    {dir:[-1,0,0],n:[-1,0,0],key:'side',  v:[[0,0,0],[0,0,1],[0,1,1],[0,1,0]]},
+];
+
+class Chunk{
+    constructor(cx,cy,cz){
+        this.cx=cx;this.cy=cy;this.cz=cz;
+        this.blocks=new Uint8Array(CHUNK_SIZE**3);
+        this.mesh=null;this.dirty=true;
+    }
+    idx(x,y,z){return x+y*CHUNK_SIZE+z*CHUNK_SIZE*CHUNK_SIZE;}
+    inB(x,y,z){return x>=0&&x<CHUNK_SIZE&&y>=0&&y<CHUNK_SIZE&&z>=0&&z<CHUNK_SIZE;}
+    get(x,y,z){return this.inB(x,y,z)?this.blocks[this.idx(x,y,z)]:-1;}
+    set(x,y,z,t){if(this.inB(x,y,z)){this.blocks[this.idx(x,y,z)]=t;this.dirty=true;}}
+
+    buildMesh(scene,mat,world){
+        if(this.mesh){this.mesh.dispose();this.mesh=null;}
+        const pos=[],nrm=[],uvs=[],idx=[];let vc=0;
+        const ox=this.cx*CHUNK_SIZE,oy=this.cy*CHUNK_SIZE,oz=this.cz*CHUNK_SIZE;
+
+        for(let lx=0;lx<CHUNK_SIZE;lx++)for(let ly=0;ly<CHUNK_SIZE;ly++)for(let lz=0;lz<CHUNK_SIZE;lz++){
+            const bt=this.blocks[this.idx(lx,ly,lz)];
+            if(bt===BlockType.AIR)continue;
+            const atlas=BlockAtlas[bt];if(!atlas)continue;
+
+            for(const f of FACES){
+                const nx=lx+f.dir[0],ny=ly+f.dir[1],nz=lz+f.dir[2];
+                let nb;
+                if(this.inB(nx,ny,nz)) nb=this.blocks[this.idx(nx,ny,nz)];
+                else nb=world.getBlock(ox+nx,oy+ny,oz+nz);
+
+                if(nb!==-1&&nb!==undefined){
+                    const np=BlockProps[nb];
+                    if(np&&np.solid&&!np.transparent)continue;
+                }
+
+                const tid=atlas[f.key];
+                const{u0,u1,v0,v1}=tileUV(tid);
+                for(const[vx,vy,vz]of f.v){
+                    pos.push(ox+lx+vx,oy+ly+vy,oz+lz+vz);
+                    nrm.push(...f.n);
+                }
+                uvs.push(u0,v0, u0,v1, u1,v1, u1,v0);
+                idx.push(vc,vc+1,vc+2, vc,vc+2,vc+3);
+                vc+=4;
+            }
+        }
+
+        if(vc===0){this.dirty=false;return;}
+        const m=new BABYLON.Mesh(`ck_${this.cx}_${this.cy}_${this.cz}`,scene);
+        const vd=new BABYLON.VertexData();
+        vd.positions=new Float32Array(pos);
+        vd.normals=new Float32Array(nrm);
+        vd.uvs=new Float32Array(uvs);
+        vd.indices=new Int32Array(idx);
+        vd.applyToMesh(m,false);
+        m.material=mat;m.isPickable=false;m.freezeWorldMatrix();
+        this.mesh=m;this.dirty=false;
+    }
+    dispose(){if(this.mesh){this.mesh.dispose();this.mesh=null;}}
+}
+
+// ════════════════════════════════════════════════
+//  WORLD
+// ════════════════════════════════════════════════
+class World{
+    constructor(scene,mat){
+        this.scene=scene;this.mat=mat;
+        this._chunks=new Map();
+        this.renderR=4;this.HCHUNKS=4;
+    }
+    _key(cx,cy,cz){return`${cx},${cy},${cz}`;}
+    _w2l(wx,wy,wz){
+        const cs=CHUNK_SIZE;
+        return{cx:Math.floor(wx/cs),cy:Math.floor(wy/cs),cz:Math.floor(wz/cs),
+               lx:((wx%cs)+cs)%cs,ly:((wy%cs)+cs)%cs,lz:((wz%cs)+cs)%cs};
+    }
+    getChunk(cx,cy,cz){return this._chunks.get(this._key(cx,cy,cz));}
+    _mkChunk(cx,cy,cz){
+        const c=new Chunk(cx,cy,cz);this._gen(c);
+        this._chunks.set(this._key(cx,cy,cz),c);return c;
+    }
+    getOrCreate(cx,cy,cz){return this.getChunk(cx,cy,cz)||this._mkChunk(cx,cy,cz);}
+    _gen(chunk){
+        const base=chunk.cy*CHUNK_SIZE;
+        for(let lx=0;lx<CHUNK_SIZE;lx++)for(let lz=0;lz<CHUNK_SIZE;lz++)for(let ly=0;ly<CHUNK_SIZE;ly++){
+            const wy=base+ly;
+            let t=BlockType.AIR;
+            if(wy===0)t=BlockType.BEDROCK;
+            else if(wy<5)t=BlockType.STONE;
+            else if(wy<8)t=BlockType.DIRT;
+            else if(wy===8)t=BlockType.GRASS;
+            else if(wy>8 && wy<=14){
+                const wx = chunk.cx * CHUNK_SIZE + lx;
+                const wz = chunk.cz * CHUNK_SIZE + lz;
+                // Check if a tree center is nearby
+                for(let dx=-2; dx<=2; dx++){
+                    for(let dz=-2; dz<=2; dz++){
+                        const tx = wx - dx;
+                        const tz = wz - dz;
+                        // Deterministic tree center placement
+                        const h = Math.sin(tx * 12.9898 + tz * 78.233) * 43758.5453123;
+                        const noise = h - Math.floor(h);
+                        // 1.5% chance, away from spawn area
+                        if(noise < 0.015 && (Math.abs(tx - 8) >= 4 || Math.abs(tz - 8) >= 4)){
+                            if(dx===0 && dz===0 && wy<=12){
+                                t=BlockType.WOOD;
+                            } else if(wy===11 || wy===12){
+                                const adx = Math.abs(dx), adz = Math.abs(dz);
+                                if(adx<=2 && adz<=2 && !(adx===2 && adz===2)){
+                                    if(t!==BlockType.WOOD) t=BlockType.LEAVES;
+                                }
+                            } else if(wy===13 || wy===14){
+                                if(Math.abs(dx)<=1 && Math.abs(dz)<=1){
+                                    if(t!==BlockType.WOOD) t=BlockType.LEAVES;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if(t)chunk.set(lx,ly,lz,t);
+        }
+        chunk.dirty=true;
+    }
+    getBlock(wx,wy,wz){
+        const{cx,cy,cz,lx,ly,lz}=this._w2l(Math.floor(wx),Math.floor(wy),Math.floor(wz));
+        const c=this.getChunk(cx,cy,cz);if(!c)return BlockType.AIR;
+        const b=c.get(lx,ly,lz);return b===-1?BlockType.AIR:b;
+    }
+    setBlock(wx,wy,wz,t){
+        const{cx,cy,cz,lx,ly,lz}=this._w2l(Math.floor(wx),Math.floor(wy),Math.floor(wz));
+        const c=this.getOrCreate(cx,cy,cz);c.set(lx,ly,lz,t);
+        const md=this._markD.bind(this);
+        if(lx===0)md(cx-1,cy,cz);if(lx===CHUNK_SIZE-1)md(cx+1,cy,cz);
+        if(ly===0)md(cx,cy-1,cz);if(ly===CHUNK_SIZE-1)md(cx,cy+1,cz);
+        if(lz===0)md(cx,cy,cz-1);if(lz===CHUNK_SIZE-1)md(cx,cy,cz+1);
+    }
+    _markD(cx,cy,cz){const c=this.getChunk(cx,cy,cz);if(c)c.dirty=true;}
+
+    update(pos){
+        const pcx=Math.floor(pos.x/CHUNK_SIZE),pcz=Math.floor(pos.z/CHUNK_SIZE);
+        const rd=this.renderR;
+        for(let dx=-rd;dx<=rd;dx++)for(let dz=-rd;dz<=rd;dz++){
+            if(dx*dx+dz*dz>rd*rd)continue;
+            for(let cy=0;cy<this.HCHUNKS;cy++)this.getOrCreate(pcx+dx,cy,pcz+dz);
+        }
+        let rb=0;
+        for(const c of this._chunks.values())if(c.dirty&&rb<4){c.buildMesh(this.scene,this.mat,this);rb++;}
+        for(const[k,c]of this._chunks){
+            const dx=c.cx-pcx,dz=c.cz-pcz;
+            if(dx*dx+dz*dz>(rd+3)*(rd+3)){c.dispose();this._chunks.delete(k);}
+        }
+    }
+    serialize(){
+        const d={};
+        for(const[k,c]of this._chunks){const a=Array.from(c.blocks);if(a.some(b=>b!==0))d[k]=a;}
+        return JSON.stringify(d);
+    }
+    deserialize(json){
+        const d=JSON.parse(json);
+        for(const[k,blocks]of Object.entries(d)){
+            const[cx,cy,cz]=k.split(',').map(Number);
+            let c=this.getChunk(cx,cy,cz);
+            if(!c){c=new Chunk(cx,cy,cz);this._chunks.set(this._key(cx,cy,cz),c);}
+            c.blocks=new Uint8Array(blocks);c.dirty=true;
+        }
+    }
+}
+
+// ════════════════════════════════════════════════
+//  GRAVITY SYSTEM
+// ════════════════════════════════════════════════
+class GravitySystem{
+    constructor(){
+        this._dirs=[
+            {vec:new BABYLON.Vector3(0,-1,0),label:'⬇ Gravedad Normal',    cls:''},
+            {vec:new BABYLON.Vector3(0, 1,0),label:'⬆ Gravedad Invertida', cls:'inv'},
+            {vec:new BABYLON.Vector3(-1,0,0),label:'◀ Gravedad Izquierda', cls:'side'},
+            {vec:new BABYLON.Vector3( 1,0,0),label:'▶ Gravedad Derecha',   cls:'side'},
+            {vec:new BABYLON.Vector3(0,0,-1),label:'▲ Gravedad Adelante',  cls:'side'},
+            {vec:new BABYLON.Vector3(0,0, 1),label:'▼ Gravedad Atrás',     cls:'side'},
+        ];
+        this._i=0;this.strength=22;
+        this.direction=this._dirs[0].vec.clone();
+        this._target=this._dirs[0].vec.clone();
+        this._prev=this._dirs[0].vec.clone();
+        this._trans=false;this._tt=0;this._td=0.55;
+    }
+    cycle(){
+        this._i=(this._i+1)%this._dirs.length;
+        const e=this._dirs[this._i];
+        this._prev=this.direction.clone();
+        this._target=e.vec.clone();
+        this._trans=true;this._tt=0;
+        return e;
+    }
+    update(dt){
+        if(!this._trans)return;
+        this._tt+=dt;
+        const t=Math.min(this._tt/this._td,1);
+        const e=t*t*(3-2*t);
+        this.direction=BABYLON.Vector3.Lerp(this._prev,this._target,e);
+        if(t>=1){this.direction=this._target.clone();this._trans=false;}
+    }
+    get acceleration(){return this.direction.scale(this.strength);}
+    get upVector(){return this.direction.negate();}
+    get isTransitioning(){return this._trans;}
+    get gravAxis(){
+        const d=this.direction;
+        const ax=Math.abs(d.x),ay=Math.abs(d.y),az=Math.abs(d.z);
+        if(ax>ay&&ax>az)return{axis:'x',sign:d.x>0?1:-1};
+        if(az>ax&&az>ay)return{axis:'z',sign:d.z>0?1:-1};
+        return{axis:'y',sign:d.y>0?1:-1};
+    }
+}
+
+// ════════════════════════════════════════════════
+//  MOBS SYSTEM
+// ════════════════════════════════════════════════
+const MOB_WIDTH = 0.4, MOB_HEIGHT = 0.8;
+class Mob {
+    constructor(type, scene, world, gravity, startPos) {
+        this.type = type; this.scene = scene; this.world = world; this.gravity = gravity;
+        this.position = startPos.clone();
+        this.velocity = new BABYLON.Vector3(0, 0, 0);
+        this.health = type === 'zombie' ? 30 : 15;
+        this.maxHealth = this.health;
+        this.speed = type === 'zombie' ? 3.0 : 1.5;
+        this.onGround = false;
+        this.wanderTimer = 0;
+        this.wanderDir = new BABYLON.Vector3(0, 0, 0);
+        this.damageCooldown = 0;
+        this.hitFlashTimer = 0;
+        this.mesh = this._createVisualModel();
+    }
+    _createVisualModel() {
+        const root = new BABYLON.TransformNode(`mob_${this.type}_root`, this.scene);
+        root.position.copyFrom(this.position);
+        const mat = new BABYLON.StandardMaterial(`mob_${this.type}_mat`, this.scene);
+        mat.specularColor = new BABYLON.Color3(0, 0, 0);
+        mat.ambientColor = new BABYLON.Color3(1, 1, 1);
+        if (this.type === 'zombie') {
+            mat.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.2);
+        } else {
+            mat.diffuseColor = new BABYLON.Color3(0.95, 0.95, 0.95);
+        }
+        this.material = mat;
+        const body = BABYLON.MeshBuilder.CreateBox('body', { width: MOB_WIDTH * 2, height: MOB_HEIGHT * 1.2, depth: MOB_WIDTH * 2 }, this.scene);
+        body.parent = root; body.position.y = MOB_HEIGHT; body.material = mat;
+        const head = BABYLON.MeshBuilder.CreateBox('head', { width: MOB_WIDTH * 1.2, height: MOB_WIDTH * 1.2, depth: MOB_WIDTH * 1.2 }, this.scene);
+        head.parent = root; head.position.y = MOB_HEIGHT * 1.8; head.material = mat;
+        if (this.type === 'zombie') {
+            const headMat = new BABYLON.StandardMaterial('zombie_head_mat', this.scene);
+            headMat.diffuseColor = new BABYLON.Color3(0.1, 0.4, 0.1); head.material = headMat;
+        } else {
+            const face = BABYLON.MeshBuilder.CreateBox('face', { width: MOB_WIDTH * 0.8, height: MOB_WIDTH * 0.8, depth: MOB_WIDTH * 0.8 }, this.scene);
+            face.parent = head; face.position.z = MOB_WIDTH * 0.5; face.position.y = -MOB_WIDTH * 0.2;
+            const faceMat = new BABYLON.StandardMaterial('sheep_face_mat', this.scene);
+            faceMat.diffuseColor = new BABYLON.Color3(0.9, 0.75, 0.7); face.material = faceMat;
+        }
+        this.legs = [];
+        const legW = MOB_WIDTH * 0.4, legH = MOB_HEIGHT * 0.8;
+        for (let i = 0; i < 4; i++) {
+            const leg = BABYLON.MeshBuilder.CreateBox(`leg_${i}`, { width: legW, height: legH, depth: legW }, this.scene);
+            leg.parent = root; leg.material = mat;
+            const dx = (i % 2 === 0 ? 1 : -1) * (MOB_WIDTH * 0.5);
+            const dz = (i < 2 ? 1 : -1) * (MOB_WIDTH * 0.5);
+            leg.position.set(dx, legH / 2, dz);
+            this.legs.push(leg);
+        }
+        if (this.type === 'zombie') {
+            this.legs[0].position.set(MOB_WIDTH * 1.1, MOB_HEIGHT * 1.3, MOB_WIDTH);
+            this.legs[0].rotation.x = -Math.PI / 2;
+            this.legs[1].position.set(-MOB_WIDTH * 1.1, MOB_HEIGHT * 1.3, MOB_WIDTH);
+            this.legs[1].rotation.x = -Math.PI / 2;
+        }
+        return root;
+    }
+    _solid(wx, wy, wz) {
+        const b = this.world.getBlock(Math.floor(wx), Math.floor(wy), Math.floor(wz));
+        const p = BlockProps[b]; return p ? p.solid : false;
+    }
+    takeDamage(amount, sourceDir) {
+        if (this.damageCooldown > 0) return;
+        this.health -= amount; this.damageCooldown = 0.2; this.hitFlashTimer = 0.2;
+        const kb = sourceDir.scale(8.0);
+        const upVec = this.gravity.upVector;
+        this.velocity.addInPlace(kb).addInPlace(upVec.scale(4.0));
+        this.onGround = false;
+        this._setFlashColor(new BABYLON.Color3(1.0, 0.1, 0.1));
+    }
+    _setFlashColor(color) {
+        this.mesh.getChildMeshes().forEach(m => { if (m.material) m.material.emissiveColor = color; });
+    }
+    _resetFlashColor() {
+        this.mesh.getChildMeshes().forEach(m => { if (m.material) m.material.emissiveColor = new BABYLON.Color3(0, 0, 0); });
+    }
+    update(dt, player) {
+        if (this.damageCooldown > 0) this.damageCooldown -= dt;
+        if (this.hitFlashTimer > 0) {
+            this.hitFlashTimer -= dt;
+            if (this.hitFlashTimer <= 0) this._resetFlashColor();
+        }
+        const gravDir = this.gravity.direction;
+        const upVec = this.gravity.upVector;
+        let move = BABYLON.Vector3.Zero();
+        const distToPlayer = BABYLON.Vector3.Distance(this.position, player.center);
+        if (this.type === 'zombie' && distToPlayer < 18) {
+            const diff = player.center.subtract(this.position);
+            const lateralDiff = diff.subtract(gravDir.scale(BABYLON.Vector3.Dot(diff, gravDir)));
+            if (lateralDiff.lengthSquared() > 0.01) {
+                move = lateralDiff.normalize().scale(this.speed);
+                const angle = Math.atan2(lateralDiff.x, lateralDiff.z);
+                this.mesh.rotation.y = angle;
+            }
+            if (distToPlayer < 1.4 && player.takeDamage) {
+                player.takeDamage(20, this.position.subtract(player.center).normalize());
+            }
+        } else {
+            this.wanderTimer -= dt;
+            if (this.wanderTimer <= 0) {
+                this.wanderTimer = 2.0 + Math.random() * 4.0;
+                if (Math.random() < 0.6) {
+                    const angle = Math.random() * Math.PI * 2;
+                    this.wanderDir.set(Math.sin(angle), 0, Math.cos(angle)).normalize();
+                } else {
+                    this.wanderDir.setAll(0);
+                }
+            }
+            if (this.wanderDir.lengthSquared() > 0.001) {
+                const lateralFwd = this.wanderDir.subtract(gravDir.scale(BABYLON.Vector3.Dot(this.wanderDir, gravDir)));
+                if (lateralFwd.lengthSquared() > 0.001) {
+                    move = lateralFwd.normalize().scale(this.speed);
+                    const angle = Math.atan2(lateralFwd.x, lateralFwd.z);
+                    this.mesh.rotation.y = angle;
+                }
+            }
+        }
+        const gravVelComp = BABYLON.Vector3.Dot(this.velocity, gravDir);
+        this.velocity = gravDir.scale(gravVelComp).add(move);
+        this.velocity.addInPlace(this.gravity.acceleration.scale(dt));
+        const prevOnGround = this.onGround;
+        this.onGround = false;
+        this._moveAxis('x', dt, gravDir);
+        this._moveAxis('y', dt, gravDir);
+        this._moveAxis('z', dt, gravDir);
+        if (move.lengthSquared() > 0.1 && prevOnGround && !this.onGround) {
+            this.velocity.addInPlace(upVec.scale(6.5));
+            this.onGround = false;
+        }
+        this.mesh.position.copyFrom(this.position);
+        if (move.lengthSquared() > 0.05 && this.onGround) {
+            const time = performance.now() * 0.008 * this.speed;
+            const amp = 0.6;
+            if (this.type === 'sheep') {
+                this.legs[0].rotation.x = Math.sin(time) * amp;
+                this.legs[1].rotation.x = -Math.sin(time) * amp;
+                this.legs[2].rotation.x = -Math.sin(time) * amp;
+                this.legs[3].rotation.x = Math.sin(time) * amp;
+            } else {
+                this.legs[2].rotation.x = Math.sin(time) * amp;
+                this.legs[3].rotation.x = -Math.sin(time) * amp;
+            }
+        } else {
+            const startIdx = this.type === 'zombie' ? 2 : 0;
+            for (let i = startIdx; i < 4; i++) this.legs[i].rotation.x = 0;
+        }
+    }
+    _moveAxis(axis, dt, gravDir) {
+        this.position[axis] += this.velocity[axis] * dt;
+        const minX = this.position.x - MOB_WIDTH, maxX = this.position.x + MOB_WIDTH;
+        const minY = this.position.y - MOB_HEIGHT * 0.5, maxY = this.position.y + MOB_HEIGHT * 1.5;
+        const minZ = this.position.z - MOB_WIDTH, maxZ = this.position.z + MOB_WIDTH;
+        const minBX = Math.floor(minX), maxBX = Math.floor(maxX);
+        const minBY = Math.floor(minY), maxBY = Math.floor(maxY);
+        const minBZ = Math.floor(minZ), maxBZ = Math.floor(maxZ);
+        for (let bx = minBX; bx <= maxBX; bx++) {
+            for (let by = minBY; by <= maxBY; by++) {
+                for (let bz = minBZ; bz <= maxBZ; bz++) {
+                    if (!this._solid(bx, by, bz)) continue;
+                    let overlap = 0;
+                    if (axis === 'x') {
+                        const ovMin = maxX - bx, ovMax = (bx + 1) - minX;
+                        if (ovMin <= 0 || ovMax <= 0) continue;
+                        overlap = ovMin < ovMax ? -ovMin : ovMax;
+                    } else if (axis === 'y') {
+                        const ovMin = maxY - by, ovMax = (by + 1) - minY;
+                        if (ovMin <= 0 || ovMax <= 0) continue;
+                        overlap = ovMin < ovMax ? -ovMin : ovMax;
+                    } else {
+                        const ovMin = maxZ - bz, ovMax = (bz + 1) - minZ;
+                        if (ovMin <= 0 || ovMax <= 0) continue;
+                        overlap = ovMin < ovMax ? -ovMin : ovMax;
+                    }
+                    this.position[axis] += overlap;
+                    if (Math.sign(overlap) !== Math.sign(this.velocity[axis]) || overlap === 0) {
+                        const gComp = gravDir[axis];
+                        if (Math.abs(gComp) > 0.5) {
+                            if (Math.sign(overlap) !== Math.sign(gComp)) this.onGround = true;
+                        }
+                        this.velocity[axis] = 0;
+                    }
+                }
+            }
+        }
+    }
+    dispose() {
+        if (this.mesh) this.mesh.dispose(false, true);
+        if (this.material) this.material.dispose();
+    }
+}
+class MobManager {
+    constructor(scene, world, gravity) {
+        this.scene = scene; this.world = world; this.gravity = gravity;
+        this.mobs = []; this.spawnTimer = 0;
+    }
+    update(dt, player) {
+        for (let i = this.mobs.length - 1; i >= 0; i--) {
+            const mob = this.mobs[i]; mob.update(dt, player);
+            if (mob.health <= 0 || mob.position.y < -30 || mob.position.y > 100) {
+                mob.dispose(); this.mobs.splice(i, 1);
+            }
+        }
+        this.spawnTimer += dt;
+        if (this.spawnTimer >= 4.0) {
+            this.spawnTimer = 0;
+            if (this.mobs.length < 10) this.spawnNear(player.center);
+        }
+    }
+    spawnNear(center) {
+        const angle = Math.random() * Math.PI * 2, dist = 12 + Math.random() * 15;
+        const sx = Math.floor(center.x + Math.sin(angle) * dist);
+        const sz = Math.floor(center.z + Math.cos(angle) * dist);
+        for (let sy = 30; sy > 0; sy--) {
+            const block = this.world.getBlock(sx, sy, sz);
+            const above = this.world.getBlock(sx, sy + 1, sz);
+            const above2 = this.world.getBlock(sx, sy + 2, sz);
+            if (block !== 0 && BlockProps[block]?.solid && above === 0 && above2 === 0) {
+                const type = Math.random() < 0.4 ? 'zombie' : 'sheep';
+                const startPos = new BABYLON.Vector3(sx + 0.5, sy + 1.5, sz + 0.5);
+                const mob = new Mob(type, this.scene, this.world, this.gravity, startPos);
+                this.mobs.push(mob);
+                break;
+            }
+        }
+    }
+    checkRaycastHit(origin, dir, reach) {
+        let closestMob = null, closestDist = reach;
+        for (const mob of this.mobs) {
+            const center = mob.position;
+            const minX = center.x - MOB_WIDTH, maxX = center.x + MOB_WIDTH;
+            const minY = center.y - MOB_HEIGHT * 0.5, maxY = center.y + MOB_HEIGHT * 1.5;
+            const minZ = center.z - MOB_WIDTH, maxZ = center.z + MOB_WIDTH;
+            let tmin = -Infinity, tmax = Infinity;
+            const bounds = [
+                { min: minX, max: maxX, o: origin.x, d: dir.x },
+                { min: minY, max: maxY, o: origin.y, d: dir.y },
+                { min: minZ, max: maxZ, o: origin.z, d: dir.z },
+            ];
+            let intersects = true;
+            for (const b of bounds) {
+                if (Math.abs(b.d) < 0.000001) {
+                    if (b.o < b.min || b.o > b.max) { intersects = false; break; }
+                } else {
+                    let t1 = (b.min - b.o) / b.d, t2 = (b.max - b.o) / b.d;
+                    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+                    tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2);
+                    if (tmin > tmax) { intersects = false; break; }
+                }
+            }
+            if (intersects && tmin >= 0 && tmin < closestDist) {
+                closestDist = tmin; closestMob = mob;
+            }
+        }
+        return closestMob;
+    }
+    clear() {
+        this.mobs.forEach(mob => mob.dispose()); this.mobs = [];
+    }
+}
+
+// ════════════════════════════════════════════════
+//  INVENTORY
+// ════════════════════════════════════════════════
+class Inventory{
+    constructor(){this.slots=[...HOTBAR_BLOCKS];this.sel=0;}
+    select(i){if(i>=0&&i<this.slots.length)this.sel=i;}
+    getBlock(){return this.slots[this.sel];}
+    scroll(d){const l=this.slots.length;this.sel=((this.sel+d)%l+l)%l;}
+}
+
+// ════════════════════════════════════════════════
+//  PLAYER
+// ════════════════════════════════════════════════
+const HX=0.38,HY=0.9,HZ=0.38;
+const MSPEED=5.5,JSPEED=9,REACH=5.5,RSTEP=0.05;
+const BREAK_D=0.25,PLACE_D=0.3,MAX_VV=40;
+
+class Player{
+    constructor(scene,cam,world,grav,inv){
+        this.scene=scene;this.camera=cam;this.world=world;this.gravity=grav;this.inv=inv;
+        this.center=new BABYLON.Vector3(8.5,9.9,8.5);
+        this.velocity=new BABYLON.Vector3(0,0,0);
+        this.onGround=false;
+        this.hitBlock=null;this.placePos=null;
+        this._bt=0;this._pt=0;this._jt=0;
+        this.health = 100;
+        this.maxHealth = 100;
+        this.damageCooldown = 0;
+        this.regenTimer = 0;
+        this.keys={};
+        window.addEventListener('keydown',e=>{this.keys[e.code]=true;});
+        window.addEventListener('keyup',e=>{this.keys[e.code]=false;});
+    }
+    get minX(){return this.center.x-HX;} get maxX(){return this.center.x+HX;}
+    get minY(){return this.center.y-HY;} get maxY(){return this.center.y+HY;}
+    get minZ(){return this.center.z-HZ;} get maxZ(){return this.center.z+HZ;}
+
+    _solid(wx,wy,wz){
+        const b=this.world.getBlock(Math.floor(wx),Math.floor(wy),Math.floor(wz));
+        const p=BlockProps[b];return p?p.solid:false;
+    }
+
+    update(dt){
+        this._bt=Math.max(0,this._bt-dt);
+        this._pt=Math.max(0,this._pt-dt);
+        this._jt=Math.max(0,this._jt-dt);
+        this.damageCooldown = Math.max(0, this.damageCooldown - dt);
+        this.regenTimer = Math.max(0, this.regenTimer - dt);
+        if (this.regenTimer <= 0 && this.health < this.maxHealth) {
+            this.health = Math.min(this.maxHealth, this.health + 8 * dt);
+        }
+
+        const gd=this.gravity.direction;
+        const up=this.gravity.upVector;
+
+        // Camera forward projected on plane ⊥ gravity
+        const m=this.camera.getWorldMatrix();
+        const cf=new BABYLON.Vector3(-m.m[8],-m.m[9],-m.m[10]).normalize();
+        let fwd=cf.subtract(gd.scale(BABYLON.Vector3.Dot(cf,gd)));
+        if(fwd.lengthSquared()<0.0001)fwd.set(0,0,1);else fwd.normalize();
+        const right=BABYLON.Vector3.Cross(fwd,up);
+        if(right.lengthSquared()>0.0001)right.normalize();
+
+        let mv=BABYLON.Vector3.Zero();
+        if(this.keys['KeyW']||this.keys['ArrowUp'])   mv.addInPlace(fwd);
+        if(this.keys['KeyS']||this.keys['ArrowDown']) mv.subtractInPlace(fwd);
+        if(this.keys['KeyD']||this.keys['ArrowRight'])mv.addInPlace(right);
+        if(this.keys['KeyA']||this.keys['ArrowLeft']) mv.subtractInPlace(right);
+        if(mv.lengthSquared()>0.0001)mv.normalize().scaleInPlace(MSPEED);
+
+        // Keep gravity-axis velocity, replace lateral
+        const gvc=BABYLON.Vector3.Dot(this.velocity,gd);
+        this.velocity=gd.scale(gvc).add(mv);
+
+        // Jump
+        if(this.keys['Space']&&this.onGround&&this._jt<=0){
+            this.velocity.addInPlace(up.scale(JSPEED));
+            this.onGround=false;this._jt=0.25;
+        }
+
+        // Gravity acceleration
+        this.velocity.addInPlace(this.gravity.acceleration.scale(dt));
+
+        // Cap velocity
+        const sv=BABYLON.Vector3.Dot(this.velocity,gd);
+        if(Math.abs(sv)>MAX_VV){this.velocity.subtractInPlace(gd.scale(sv-Math.sign(sv)*MAX_VV));}
+
+        // Move each axis
+        this.onGround=false;
+        this._axis('x',dt,gd); this._axis('y',dt,gd); this._axis('z',dt,gd);
+
+        // Camera position (eye at top of AABB toward up)
+        const eyeOff=up.scale(HY*0.75);
+        this.camera.position=this.center.add(eyeOff);
+
+        this._raycast();
+    }
+
+    _axis(ax,dt,gd){
+        this.center[ax]+=this.velocity[ax]*dt;
+        const mnX=Math.floor(this.minX),mxX=Math.floor(this.maxX);
+        const mnY=Math.floor(this.minY),mxY=Math.floor(this.maxY);
+        const mnZ=Math.floor(this.minZ),mxZ=Math.floor(this.maxZ);
+        for(let bx=mnX;bx<=mxX;bx++)for(let by=mnY;by<=mxY;by++)for(let bz=mnZ;bz<=mxZ;bz++){
+            if(!this._solid(bx,by,bz))continue;
+            let ov=0;
+            if(ax==='x'){const a=this.maxX-bx,b=(bx+1)-this.minX;if(a<=0||b<=0)continue;ov=a<b?-a:b;}
+            else if(ax==='y'){const a=this.maxY-by,b=(by+1)-this.minY;if(a<=0||b<=0)continue;ov=a<b?-a:b;}
+            else{const a=this.maxZ-bz,b=(bz+1)-this.minZ;if(a<=0||b<=0)continue;ov=a<b?-a:b;}
+            this.center[ax]+=ov;
+            if(Math.sign(ov)!==Math.sign(this.velocity[ax])||ov===0){
+                if(Math.abs(gd[ax])>0.5&&Math.sign(ov)!==Math.sign(gd[ax]))this.onGround=true;
+                this.velocity[ax]=0;
+            }
+        }
+    }
+
+    _raycast(){
+        const ori=this.camera.position;
+        const m=this.camera.getWorldMatrix();
+        const dir=new BABYLON.Vector3(-m.m[8],-m.m[9],-m.m[10]).normalize();
+        let prev=null;this.hitBlock=null;this.placePos=null;
+        for(let t=0.15;t<=REACH;t+=RSTEP){
+            const pt=ori.add(dir.scale(t));
+            const bx=Math.floor(pt.x),by=Math.floor(pt.y),bz=Math.floor(pt.z);
+            const b=this.world.getBlock(bx,by,bz);const p=BlockProps[b];
+            if(p&&p.solid){
+                this.hitBlock=new BABYLON.Vector3(bx,by,bz);
+                if(prev)this.placePos=new BABYLON.Vector3(Math.floor(prev.x),Math.floor(prev.y),Math.floor(prev.z));
+                return;
+            }
+            prev=pt.clone();
+        }
+    }
+
+    breakBlock(){
+        if(!this.hitBlock||this._bt>0)return;
+        const bx=this.hitBlock.x, by=this.hitBlock.y, bz=this.hitBlock.z;
+        if(this.world.getBlock(bx,by,bz)===BlockType.BEDROCK){
+            if(this.ui)this.ui.notify('❌ Bedrock indestructible','error');
+            return;
+        }
+        this.world.setBlock(bx,by,bz,BlockType.AIR);
+        this._bt=BREAK_D;
+    }
+    placeBlock(){
+        if(!this.placePos||this._pt>0)return;
+        const{x,y,z}=this.placePos;
+        if(x+1>this.minX&&x<this.maxX&&y+1>this.minY&&y<this.maxY&&z+1>this.minZ&&z<this.maxZ)return;
+        this.world.setBlock(x,y,z,this.inv.getBlock());this._pt=PLACE_D;
+    }
+    _cameraForward() {
+        const m = this.camera.getWorldMatrix();
+        const fwd = new BABYLON.Vector3(m.m[8], m.m[9], m.m[10]);
+        return fwd.normalize();
+    }
+    takeDamage(amount, sourceDir) {
+        if (this.damageCooldown > 0 || this.health <= 0) return;
+        this.health = Math.max(0, this.health - amount);
+        this.damageCooldown = 0.8;
+        this.regenTimer = 5.0;
+        const kbForce = 9.0;
+        const upVec = this.gravity.upVector;
+        this.velocity.copyFrom(sourceDir.scale(-kbForce).add(upVec.scale(3.5)));
+        this.onGround = false;
+        if (this.ui) {
+            this.ui.notify('💥 ¡Recibiste daño!', 'error');
+            if (this.ui.flashDamage) this.ui.flashDamage();
+        }
+        if (this.health <= 0) this.die();
+    }
+    die() {
+        if (this.ui) this.ui.notify('💀 ¡Has muerto!', 'error');
+        setTimeout(() => {
+            this.center.set(8.5, 9.9, 8.5);
+            this.velocity.setAll(0);
+            this.health = this.maxHealth;
+            if (this.ui) this.ui.notify('✨ Respawned', 'success');
+        }, 1500);
+    }
+}
+
+// ════════════════════════════════════════════════
+//  UI
+// ════════════════════════════════════════════════
+class UI{
+    constructor(inv){
+        this.inv=inv;
+        this._gEl=document.getElementById('gravity-indicator');
+        this._cEl=document.getElementById('coords-display');
+        this._fEl=document.getElementById('fps-counter');
+        this._nEl=document.getElementById('notification');
+        this._hEl=document.getElementById('hotbar');
+        this._fa=0;this._ff=0;this._nt=null;
+        this._setupHealthBar();
+        this._buildHotbar();
+    }
+    _setupHealthBar() {
+        this._healthEl = document.getElementById('health-bar');
+        if (!this._healthEl) {
+            this._healthEl = document.createElement('div');
+            this._healthEl.id = 'health-bar';
+            const overlay = document.getElementById('ui-overlay');
+            const hotbar = document.getElementById('hotbar');
+            if (overlay && hotbar) {
+                overlay.insertBefore(this._healthEl, hotbar);
+            } else if (overlay) {
+                overlay.appendChild(this._healthEl);
+            }
+        }
+    }
+    _buildHotbar(){
+        if(!this._hEl)return;
+        this._hEl.innerHTML='';
+        HOTBAR_BLOCKS.forEach((bt,i)=>{
+            const p=BlockProps[bt];
+            const s=document.createElement('div');
+            s.className='hs'+(i===0?' active':'');s.id=`hs${i}`;
+            s.innerHTML=`<span class="sn">${i+1}</span><span class="si">${p.icon}</span><span class="sl">${p.name}</span>`;
+            this._hEl.appendChild(s);
+        });
+    }
+    updateHotbar(){
+        document.querySelectorAll('.hs').forEach((el,i)=>el.classList.toggle('active',i===this.inv.sel));
+    }
+    updateCoords(p){if(this._cEl)this._cEl.textContent=`X ${p.x.toFixed(0)}  Y ${p.y.toFixed(0)}  Z ${p.z.toFixed(0)}`;}
+    updateFPS(dt){
+        if(!this._fEl)return;
+        this._fa+=dt;this._ff++;
+        if(this._fa>=0.5){this._fEl.textContent=`FPS ${Math.round(this._ff/this._fa)}`;this._fa=0;this._ff=0;}
+    }
+    setGravity(label,cls){if(this._gEl){this._gEl.textContent=label;this._gEl.className='hi '+(cls||'');}}
+    notify(msg,type='success'){
+        if(!this._nEl)return;
+        clearTimeout(this._nt);
+        this._nEl.textContent=msg;this._nEl.className=`show ${type}`;
+        this._nt=setTimeout(()=>{if(this._nEl)this._nEl.className='';},3000);
+    }
+    setLoad(pct){const e=document.getElementById('lprog');if(e)e.style.width=pct+'%';}
+    setTip(t){const e=document.getElementById('ltip');if(e)e.textContent=t;}
+    hideLoading(){const e=document.getElementById('loading-screen');if(e)e.classList.add('hidden');}
+    showPause(){document.getElementById('pause-menu')?.classList.remove('hidden');}
+    hidePause(){document.getElementById('pause-menu')?.classList.add('hidden');}
+    update(dt,player){
+        this.updateFPS(dt);
+        this.updateCoords(player.center);
+        this.updateHotbar();
+        this.updateHealth(player);
+    }
+    updateHealth(player) {
+        if (!this._healthEl) return;
+        const totalHearts = 10;
+        const hpPerHeart = 10;
+        const hp = player.health;
+        let html = '';
+        for (let i = 0; i < totalHearts; i++) {
+            const threshold = (i + 1) * hpPerHeart;
+            if (hp >= threshold) {
+                html += '<span class="heart full">❤️</span>';
+            } else if (hp >= threshold - hpPerHeart / 2) {
+                html += '<span class="heart half">💔</span>';
+            } else {
+                html += '<span class="heart empty">🖤</span>';
+            }
+        }
+        this._healthEl.innerHTML = html;
+    }
+    flashDamage() {
+        let flash = document.getElementById('damage-flash');
+        if (!flash) {
+            flash = document.createElement('div');
+            flash.id = 'damage-flash';
+            document.body.appendChild(flash);
+        }
+        flash.classList.remove('active');
+        void flash.offsetWidth;
+        flash.classList.add('active');
+        setTimeout(() => { if (flash) flash.classList.remove('active'); }, 300);
+    }
+}
+
+// ════════════════════════════════════════════════
+//  SAVE SYSTEM
+// ════════════════════════════════════════════════
+const SK_W='mymc_world_v2', SK_P='mymc_player_v2';
+class SaveSystem{
+    constructor(world,player){this.world=world;this.player=player;this._t=0;}
+    save(){try{localStorage.setItem(SK_W,this.world.serialize());localStorage.setItem(SK_P,JSON.stringify({x:this.player.center.x,y:this.player.center.y,z:this.player.center.z}));return true;}catch(e){return false;}}
+    load(){try{const w=localStorage.getItem(SK_W),p=localStorage.getItem(SK_P);if(w)this.world.deserialize(w);if(p){const o=JSON.parse(p);this.player.center.set(o.x,o.y,o.z);this.player.velocity.setAll(0);}return!!(w||p);}catch(e){return false;}}
+    hasSave(){return!!localStorage.getItem(SK_W);}
+    update(dt){this._t+=dt;if(this._t>=60){this._t=0;this.save();}}
+}
+
+// ════════════════════════════════════════════════
+//  MAIN GAME
+// ════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded',()=>{
+    const canvas=document.getElementById('renderCanvas');
+    const engine=new BABYLON.Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true});
+    const game=new Game(canvas,engine);
+    engine.runRenderLoop(()=>game.loop());
+    window.addEventListener('resize',()=>engine.resize());
+    window.addEventListener('beforeunload',()=>game.save?.save());
+});
+
+class Game{
+    constructor(canvas,engine){
+        this.canvas=canvas;this.engine=engine;
+        this.locked=false;this.paused=false;
+
+        // Scene
+        this.scene=new BABYLON.Scene(engine);
+        this.scene.clearColor=new BABYLON.Color4(0.53,0.81,0.98,1);
+        this.scene.ambientColor=new BABYLON.Color3(0.3,0.3,0.3);
+        this.scene.fogMode=BABYLON.Scene.FOGMODE_LINEAR;
+        this.scene.fogStart=52;this.scene.fogEnd=76;
+        this.scene.fogColor=new BABYLON.Color3(0.53,0.81,0.98);
+
+        // Camera (no inputs)
+        this.cam=new BABYLON.UniversalCamera('cam',new BABYLON.Vector3(8.5,10.5,8.5),this.scene);
+        this.cam.minZ=0.08;this.cam.maxZ=256;this.cam.fov=1.1;
+        this.cam.inputs.clear();
+        this._pitch=0;this._yaw=0;this._sens=0.0018;
+
+        // Lighting
+        this.sun=new BABYLON.DirectionalLight('sun',new BABYLON.Vector3(-1,-2,-1),this.scene);
+        this.sun.intensity=1.0;this.sun.diffuse=new BABYLON.Color3(1,0.97,0.88);
+        this.sun.specular=new BABYLON.Color3(0,0,0);
+        this.amb=new BABYLON.HemisphericLight('amb',new BABYLON.Vector3(0,1,0),this.scene);
+        this.amb.intensity=0.35;this.amb.groundColor=new BABYLON.Color3(0.15,0.12,0.1);
+
+        // Atlas + material
+        const atlas=createAtlas(this.scene);
+        this.mat=new BABYLON.StandardMaterial('cmat',this.scene);
+        this.mat.diffuseTexture=atlas;
+        this.mat.ambientColor=new BABYLON.Color3(1,1,1);
+        this.mat.specularColor=new BABYLON.Color3(0,0,0);
+        this.mat.backFaceCulling=true;
+
+        // Systems
+        this.grav=new GravitySystem();
+        this.inv=new Inventory();
+        this.world=new World(this.scene,this.mat);
+        this.player=new Player(this.scene,this.cam,this.world,this.grav,this.inv);
+        this.ui=new UI(this.inv);
+        this.player.ui=this.ui;
+        this.mobManager = new MobManager(this.scene, this.world, this.grav);
+        this.save=new SaveSystem(this.world,this.player);
+
+        // Day/night
+        this._day=0.25;this._daySpd=1/120;
+
+        // Block highlight
+        this._hl=this._mkHL();
+
+        this._prev=performance.now();
+
+        this._setupInputs();
+        this._init();
+    }
+
+    async _init(){
+        const ui=this.ui;
+        ui.setLoad(10);ui.setTip('Generando terreno…');
+        if(this.save.hasSave()){
+            ui.setLoad(25);
+            this.save.load();
+            this.mobManager.clear();
+            ui.notify('Partida cargada ✓','success');
+        }
+        ui.setLoad(40);
+        for(let r=0;r<3;r++){this.world.update(this.player.center);ui.setLoad(40+r*18);await new Promise(res=>setTimeout(res,0));}
+        ui.setLoad(100);setTimeout(()=>ui.hideLoading(),600);
+        ui.setGravity('⬇ Gravedad Normal','');
+    }
+
+    _mkHL(){
+        const b=BABYLON.MeshBuilder.CreateBox('hl',{size:1.008},this.scene);
+        const m=new BABYLON.StandardMaterial('hlm',this.scene);
+        m.emissiveColor=new BABYLON.Color3(1,1,1);m.wireframe=true;m.disableLighting=true;
+        b.material=m;b.isPickable=false;b.setEnabled(false);return b;
+    }
+
+    _setupInputs(){
+        // Pointer lock
+        this.canvas.addEventListener('click',()=>{if(!this.locked&&!this.paused)this.canvas.requestPointerLock();});
+        document.addEventListener('pointerlockchange',()=>{
+            this.locked=document.pointerLockElement===this.canvas;
+            document.getElementById('ctp-inner').style.opacity=this.locked?'0':'1';
+        });
+
+        // Mouse move → camera rotation
+        document.addEventListener('mousemove',e=>{
+            if(!this.locked||this.paused)return;
+            this._yaw+=e.movementX*this._sens;
+            this._pitch+=e.movementY*this._sens;
+            this._pitch=Math.max(-Math.PI/2+0.01,Math.min(Math.PI/2-0.01,this._pitch));
+            this._applyCam();
+        });
+
+        // Mouse buttons
+        this.canvas.addEventListener('mousedown',e=>{
+            if(!this.locked||this.paused)return;
+            if(e.button===0){
+                const cameraPos = this.cam.position;
+                const cameraDir = this.player._cameraForward();
+                const hitMob = this.mobManager.checkRaycastHit(cameraPos, cameraDir, 4.5);
+                if (hitMob) {
+                    hitMob.takeDamage(10, cameraDir);
+                } else {
+                    this.player.breakBlock();
+                }
+            }
+            if(e.button===2)this.player.placeBlock();
+        });
+        this.canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+        // Wheel
+        window.addEventListener('wheel',e=>{if(!this.locked||this.paused)return;this.inv.scroll(e.deltaY>0?1:-1);},{passive:true});
+
+        // Keys
+        window.addEventListener('keydown',e=>{
+            if(e.code>='Digit1'&&e.code<='Digit9'){this.inv.select(parseInt(e.code.slice(-1))-1);return;}
+            switch(e.code){
+                case'KeyG':if(!this.paused)this._changeGrav();break;
+                case'F5':e.preventDefault();this.save.save()?this.ui.notify('💾 Guardado','success'):this.ui.notify('Error','error');break;
+                case'Escape':this._togglePause();break;
+                case'KeyH':document.getElementById('controls-help')?.classList.toggle('hidden');break;
+            }
+        });
+
+        // Menu buttons
+        document.getElementById('resume-btn')?.addEventListener('click',()=>this._togglePause());
+        document.getElementById('save-btn')?.addEventListener('click',()=>{this.save.save()&&this.ui.notify('💾 Mundo guardado','success');});
+        document.getElementById('load-btn')?.addEventListener('click',()=>{this.save.load()?this.ui.notify('📂 Cargado','success'):this.ui.notify('Sin partida guardada','error');});
+    }
+
+    _applyCam(){
+        if(this._gravShifting)return;
+        const up=this.grav.upVector;
+        let ref;
+        const dot=Math.abs(BABYLON.Vector3.Dot(up,BABYLON.Vector3.Forward()));
+        if(dot<0.9){ref=BABYLON.Vector3.Forward().subtract(up.scale(BABYLON.Vector3.Dot(BABYLON.Vector3.Forward(),up)));}
+        else{ref=BABYLON.Vector3.Right().subtract(up.scale(BABYLON.Vector3.Dot(BABYLON.Vector3.Right(),up)));}
+        ref.normalize();
+        const yQ=BABYLON.Quaternion.RotationAxis(up,this._yaw);
+        const yM=new BABYLON.Matrix();yQ.toRotationMatrix(yM);
+        const fwd=BABYLON.Vector3.TransformNormal(ref,yM).normalize();
+        const rax=BABYLON.Vector3.Cross(fwd,up).normalize();
+        const pQ=BABYLON.Quaternion.RotationAxis(rax,this._pitch);
+        const pM=new BABYLON.Matrix();pQ.toRotationMatrix(pM);
+        const ff=BABYLON.Vector3.TransformNormal(fwd,pM).normalize();
+        this.cam.setTarget(this.cam.position.add(ff));
+        this.cam.upVector=up.clone();
+    }
+
+    _changeGrav(){
+        const e=this.grav.cycle();
+        this.ui.setGravity(e.label,e.cls);
+        this.ui.notify(`🌀 ${e.label}`,'warning');
+
+        // Record starting and ending camera vectors for smooth transition
+        this._dirStart=this.cam.getTarget().subtract(this.cam.position).normalize();
+        const upEnd=this.grav._target.negate();
+        let refEnd;
+        const dotEnd=Math.abs(BABYLON.Vector3.Dot(upEnd,BABYLON.Vector3.Forward()));
+        if(dotEnd<0.9){refEnd=BABYLON.Vector3.Forward().subtract(upEnd.scale(BABYLON.Vector3.Dot(BABYLON.Vector3.Forward(),upEnd)));}
+        else{refEnd=BABYLON.Vector3.Right().subtract(upEnd.scale(BABYLON.Vector3.Dot(BABYLON.Vector3.Right(),upEnd)));}
+        refEnd.normalize();
+        this._dirEnd=refEnd;
+        this._gravShifting=true;
+
+        this._yaw=0;this._pitch=0;
+        this.player.velocity.setAll(0);
+        this.canvas.classList.add('gflash');
+        setTimeout(()=>this.canvas.classList.remove('gflash'),500);
+    }
+
+    _togglePause(){
+        this.paused=!this.paused;
+        if(this.paused){this.ui.showPause();document.exitPointerLock();}
+        else this.ui.hidePause();
+    }
+
+    _dayNight(dt){
+        this._day=(this._day+this._daySpd*dt)%1;
+        const a=this._day*Math.PI*2;
+        const sy=-Math.sin(a),sx=-Math.cos(a);
+        this.sun.direction.set(sx*0.6,sy,-0.5);
+        const df=Math.max(0,sy);
+        this.sun.intensity=0.2+df*1.0;
+        this.amb.intensity=0.15+df*0.35;
+        const nc=new BABYLON.Color3(0.02,0.02,0.08);
+        const dc=new BABYLON.Color3(0.53,0.81,0.98);
+        const sc=BABYLON.Color3.Lerp(nc,dc,df);
+        this.scene.clearColor.set(sc.r,sc.g,sc.b,1);
+        this.scene.fogColor.set(sc.r*.95,sc.g*.95,sc.b*.95);
+    }
+
+    _updateHL(){
+        const hp=this.player.hitBlock;
+        if(hp){this._hl.setEnabled(true);this._hl.position.set(hp.x+.5,hp.y+.5,hp.z+.5);}
+        else this._hl.setEnabled(false);
+    }
+
+    loop(){
+        const now=performance.now();
+        const dt=Math.min((now-this._prev)/1000,0.05);
+        this._prev=now;
+        if(this.paused){this.scene.render();return;}
+        this.grav.update(dt);
+        this.player.update(dt);
+        this.world.update(this.player.center);
+        this.mobManager.update(dt, this.player);
+        this.save.update(dt);
+        this.ui.update(dt,this.player);
+        if(this._gravShifting){
+            const t=Math.min(this.grav._tt/this.grav._td,1);
+            const dir=BABYLON.Vector3.Lerp(this._dirStart,this._dirEnd,t).normalize();
+            this.cam.setTarget(this.cam.position.add(dir));
+            this.cam.upVector=this.grav.upVector;
+            if(t>=1)this._gravShifting=false;
+        }else{
+            this._applyCam();
+        }
+        this._dayNight(dt);
+        this._updateHL();
+        this.scene.render();
+    }
+}
+</script>
+</body>
+</html>

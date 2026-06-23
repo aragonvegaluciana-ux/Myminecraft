@@ -1,0 +1,12 @@
+{
+  "name": "myminecraft",
+  "version": "1.0.0",
+  "description": "Videojuego 3D voxel con antigravedad en el navegador",
+  "scripts": {
+    "start": "http-server . -p 8080 -c-1 --cors",
+    "dev": "http-server . -p 8080 -c-1 --cors -o"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

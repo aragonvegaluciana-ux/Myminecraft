@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyMinecraft – Mundo Voxel con Antigravedad</title>
+    <meta name="description" content="Videojuego 3D voxel inspirado en Minecraft con sistema de antigravedad. Construye, explora y desafía la gravedad en tu navegador.">
+    <meta name="theme-color" content="#0a0a0a">
+
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Babylon.js desde CDN -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+</head>
+<body>
+
+    <!-- ── Pantalla de carga ───────────────────────────────── -->
+    <div id="loading-screen">
+        <div class="loading-content">
+            <h1>MyMinecraft</h1>
+            <p class="subtitle">Antigravedad Edition</p>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+            <p class="loading-tip">Generando mundo voxel…</p>
+        </div>
+    </div>
+
+    <!-- ── Canvas 3D ──────────────────────────────────────── -->
+    <canvas id="renderCanvas"></canvas>
+
+    <!-- ── Viñeta ─────────────────────────────────────────── -->
+    <div id="vignette"></div>
+
+    <!-- ── UI Overlay ─────────────────────────────────────── -->
+    <div id="ui-overlay">
+
+        <!-- Mira / Crosshair -->
+        <div id="crosshair">
+            <div class="ch-h"></div>
+            <div class="ch-v"></div>
+        </div>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div class="hud-item" id="gravity-indicator">⬇ Gravedad Normal</div>
+            <div class="hud-item" id="coords-display">X 0.0  Y 0.0  Z 0.0</div>
+            <div class="hud-item" id="fps-counter">FPS –</div>
+        </div>
+
+        <!-- Hotbar -->
+        <div id="hotbar">
+            <!-- Generado dinámicamente por ui.js -->
+        </div>
+
+        <!-- Ayuda de controles -->
+        <div id="controls-help">
+            <span style="color:#FFD700;font-size:8px;display:block;margin-bottom:4px">CONTROLES</span>
+            <span>WASD</span> Mover<br>
+            <span>Espacio</span> Saltar<br>
+            <span>G</span> Cambiar gravedad<br>
+            <span>1–9</span> Seleccionar bloque<br>
+            <span>Rueda</span> Cambiar slot<br>
+            <span>Click izq</span> Romper bloque<br>
+            <span>Click der</span> Colocar bloque<br>
+            <span>ESC</span> Pausar<br>
+            <span>F5</span> Guardar mundo<br>
+            <span>H</span> Ocultar ayuda<br>
+            <span>T</span> Tutorial
+        </div>
+    </div>
+
+    <!-- ── Modal de Tutorial ────────────────────────────────── -->
+    <div id="tutorial-modal" class="hidden">
+        <div class="menu-panel" style="max-width:460px;min-width:320px;padding:30px 40px">
+            <h2 style="font-size:14px;margin-bottom:20px;color:var(--gold)">GUÍA DE SUPERVIVENCIA</h2>
+            <div class="tutorial-content" style="min-height:130px;margin-bottom:20px">
+                <div class="tutorial-slide active" id="tut-s1">
+                    <h3 style="font-size:10px;color:var(--accent);margin-bottom:10px">🌌 Antigravedad</h3>
+                    <p style="font-size:9px;color:var(--text);line-height:1.6">Presiona <span style="color:var(--gold)">G</span> para rotar la gravedad. Puedes caminar sobre techos y paredes. ¡Desafía la física en 6 direcciones!</p>
+                </div>
+                <div class="tutorial-slide" id="tut-s2" style="display:none">
+                    <h3 style="font-size:10px;color:var(--accent);margin-bottom:10px">⚔️ Ovejas y Zombis</h3>
+                    <p style="font-size:9px;color:var(--text);line-height:1.6">Las <span style="color:var(--gold)">Ovejas</span> son pasivas, pero ten cuidado de noche: los <span style="color:var(--gold)">Zombis</span> te perseguirán. Presiona <span style="color:var(--gold)">Clic Izquierdo</span> para golpearlos y defenderte.</p>
+                </div>
+                <div class="tutorial-slide" id="tut-s3" style="display:none">
+                    <h3 style="font-size:10px;color:var(--accent);margin-bottom:10px">🧱 Construcción</h3>
+                    <p style="font-size:9px;color:var(--text);line-height:1.6">Selecciona bloques con <span style="color:var(--gold)">1–9</span> o scroll. Rompe con <span style="color:var(--gold)">Clic Izquierdo</span> y coloca con <span style="color:var(--gold)">Clic Derecho</span>. Guarda tu partida con <span style="color:var(--gold)">F5</span>.</p>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+                <button class="menu-btn" id="tut-prev" style="width:60px;padding:8px 0;margin:0">&lt;</button>
+                <span id="tut-indicator" style="font-size:8px;color:rgba(255,255,255,0.4)">1 / 3</span>
+                <button class="menu-btn" id="tut-next" style="width:60px;padding:8px 0;margin:0">&gt;</button>
+            </div>
+            <button class="menu-btn primary" id="tut-close" style="width:100%;margin:0">Entendido</button>
+        </div>
+    </div>
+
+    <!-- ── Menú de pausa ──────────────────────────────────── -->
+    <div id="pause-menu" class="hidden">
+        <div class="menu-panel">
+            <h2>MyMinecraft</h2>
+            <p class="world-name">⏸ Pausado</p>
+            <button class="menu-btn primary" id="resume-btn">▶ Continuar</button>
+            <button class="menu-btn" id="save-btn">💾 Guardar Mundo</button>
+            <button class="menu-btn" id="load-btn">📂 Cargar Mundo</button>
+        </div>
+    </div>
+
+    <!-- ── Notificación toast ─────────────────────────────── -->
+    <div id="notification"></div>
+
+    <!-- ── Click para entrar (pre pointer-lock) ───────────── -->
+    <div id="click-to-play" style="
+        position:fixed;inset:0;z-index:200;
+        display:flex;align-items:center;justify-content:center;
+        pointer-events:none;
+    ">
+        <div id="click-hint" style="
+            background:rgba(0,0,0,0.7);
+            border:2px solid rgba(255,215,0,0.6);
+            border-radius:6px;padding:20px 40px;
+            font-family:'Press Start 2P',monospace;font-size:12px;
+            color:#FFD700;text-align:center;line-height:2;
+            pointer-events:none;
+            transition:opacity 0.5s;
+        ">
+            Haz clic para jugar<br>
+            <span style="font-size:8px;color:rgba(255,255,255,0.5)">Click para capturar el ratón</span>
+        </div>
+    </div>
+
+    <!-- ── Módulo principal ───────────────────────────────── -->
+    <script type="module" src="src/main.js"></script>
+
+    <!-- ── Ocultar hint al hacer click ──────────────────────-->
+    <script>
+        document.addEventListener('pointerlockchange', () => {
+            const hint = document.getElementById('click-hint');
+            if (hint) hint.style.opacity = document.pointerLockElement ? '0' : '1';
+        });
+    </script>
+</body>
+</html>
