@@ -280,11 +280,10 @@ export function createTextureAtlas(scene) {
         [TILE.BEDROCK]: 'bedrock.png'
     };
 
-    /* --- CARGA ASINCRONA DESACTIVADA PARA DIAGNOSTICO ---
     const loadPromises = Object.entries(tileNames).map(([tileId, fileName]) => {
         return new Promise((resolve) => {
             const img = new Image();
-            img.crossOrigin = "Anonymous";
+            // Eliminado crossOrigin para evitar strict CORS errors en Vercel sin vercel.json
             img.onload = () => {
                 // Forzar decodificación antes de dibujar
                 if (img.decode) {
@@ -313,7 +312,6 @@ export function createTextureAtlas(scene) {
             dynTex.update(false);
         }
     });
-    */
 
     return dynTex;
 }
