@@ -280,25 +280,37 @@ export function createTextureAtlas(scene) {
         [TILE.BEDROCK]: 'bedrock.png'
     };
 
-    Object.entries(tileNames).forEach(([tileId, fileName]) => {
-        const img = new Image();
-        img.crossOrigin = "Anonymous"; // Evitar que la imagen corrompa el lienzo por seguridad
-        img.onload = () => {
-            try {
-                const { tx, ty } = tileOrigin(parseInt(tileId));
-                // Dibujar la textura personalizada sobre la textura procedimental
+    const loadPromises = Object.entries(tileNames).map(([tileId, fileName]) => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = () => {
+                // Forzar decodificación antes de dibujar
+                if (img.decode) {
+                    img.decode().then(() => resolve({ img, tileId, fileName })).catch(() => resolve(null));
+                } else {
+                    resolve({ img, tileId, fileName });
+                }
+            };
+            img.onerror = () => resolve(null);
+            img.src = `textures/${fileName}`;
+        });
+    });
+
+    Promise.all(loadPromises).then((results) => {
+        let updated = false;
+        for (const res of results) {
+            if (res && res.img) {
+                const { tx, ty } = tileOrigin(parseInt(res.tileId));
                 ctx.clearRect(tx, ty, TILE_PX, TILE_PX);
-                ctx.drawImage(img, tx, ty, TILE_PX, TILE_PX);
-                dynTex.update(false);
-                console.log(`[Textura cargada]: textures/${fileName}`);
-            } catch (e) {
-                console.error(`[Error actualizando textura] textures/${fileName}:`, e);
+                ctx.drawImage(res.img, tx, ty, TILE_PX, TILE_PX);
+                console.log(`[Textura aplicada]: textures/${res.fileName}`);
+                updated = true;
             }
-        };
-        img.onerror = () => {
-            // Ignorar errores (404), mantiene el fallback procedimental
-        };
-        img.src = `textures/${fileName}`;
+        }
+        if (updated) {
+            dynTex.update(false);
+        }
     });
 
     return dynTex;
