@@ -258,7 +258,7 @@ export function createTextureAtlas(scene) {
         }
     });
 
-    dynTex.update(false);
+    dynTex.update(true);
     dynTex.wrapU = BABYLON.Texture.CLAMP_ADDRESSMODE;
     dynTex.wrapV = BABYLON.Texture.CLAMP_ADDRESSMODE;
 
@@ -283,7 +283,7 @@ export function createTextureAtlas(scene) {
     const loadPromises = Object.entries(tileNames).map(([tileId, fileName]) => {
         return new Promise((resolve) => {
             const img = new Image();
-            // Eliminado crossOrigin para evitar strict CORS errors en Vercel sin vercel.json
+            img.crossOrigin = "Anonymous";
             img.onload = () => {
                 // Forzar decodificación antes de dibujar
                 if (img.decode) {
@@ -309,7 +309,7 @@ export function createTextureAtlas(scene) {
             }
         }
         if (updated) {
-            dynTex.update(false);
+            dynTex.update(true);
         }
     });
 
