@@ -71,10 +71,17 @@ export class Mob {
         head.position.y = MOB_HEIGHT * 1.8;
         head.material = mat;
 
-        // Ojos/Detalles
         if (this.type === 'zombie') {
             const headMat = new BABYLON.StandardMaterial('zombie_head_mat', this.scene);
-            headMat.diffuseColor = new BABYLON.Color3(0.1, 0.4, 0.1);
+            const zTex = new BABYLON.DynamicTexture('zTex', {width: 64, height: 64}, this.scene);
+            const zCtx = zTex.getContext();
+            zCtx.fillStyle = '#196619'; zCtx.fillRect(0,0,64,64); // fondo
+            zCtx.fillStyle = '#000000'; zCtx.fillRect(8, 24, 16, 12); zCtx.fillRect(40, 24, 16, 12); // ojos
+            zTex.update(true);
+            zTex.anisotropicFilteringLevel = 1;
+            zTex.updateSamplingMode(BABYLON.Texture.NEAREST_SAMPLINGMODE);
+            headMat.diffuseTexture = zTex;
+            headMat.specularColor = new BABYLON.Color3(0,0,0);
             head.material = headMat;
             this.headMesh = head;
         } else {
@@ -88,7 +95,16 @@ export class Mob {
             face.position.z = MOB_WIDTH * 0.5;
             face.position.y = -MOB_WIDTH * 0.2;
             const faceMat = new BABYLON.StandardMaterial('sheep_face_mat', this.scene);
-            faceMat.diffuseColor = new BABYLON.Color3(0.9, 0.75, 0.7); // rosado
+            const sTex = new BABYLON.DynamicTexture('sTex', {width: 64, height: 64}, this.scene);
+            const sCtx = sTex.getContext();
+            sCtx.fillStyle = '#e6b3b3'; sCtx.fillRect(0,0,64,64); // fondo rosado
+            sCtx.fillStyle = '#000000'; sCtx.fillRect(10, 20, 10, 10); sCtx.fillRect(44, 20, 10, 10); // ojos
+            sCtx.fillStyle = '#cc6666'; sCtx.fillRect(24, 40, 16, 12); // nariz/boca
+            sTex.update(true);
+            sTex.anisotropicFilteringLevel = 1;
+            sTex.updateSamplingMode(BABYLON.Texture.NEAREST_SAMPLINGMODE);
+            faceMat.diffuseTexture = sTex;
+            faceMat.specularColor = new BABYLON.Color3(0,0,0);
             face.material = faceMat;
         }
 
