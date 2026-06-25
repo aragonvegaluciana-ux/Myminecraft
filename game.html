@@ -415,7 +415,7 @@ function createAtlas(scene){
     ctx.fillStyle='#1a1a1e';
     for(let i=0;i<6;i++)ctx.fillRect(tx+(Math.random()*12)|0,ty+(Math.random()*12)|0,(Math.random()*4+2)|0,(Math.random()*4+2)|0);
 
-    dyn.update(false);
+    dyn.update(true);
     dyn.wrapU=BABYLON.Texture.CLAMP_ADDRESSMODE;
     dyn.wrapV=BABYLON.Texture.CLAMP_ADDRESSMODE;
 
@@ -438,11 +438,12 @@ function createAtlas(scene){
 
     Object.entries(tileNames).forEach(([tileId, fileName]) => {
         const img = new Image();
+        img.crossOrigin = "Anonymous";
         img.onload = () => {
             const { tx, ty } = tO(parseInt(tileId));
             ctx.clearRect(tx, ty, TSZ, TSZ);
             ctx.drawImage(img, tx, ty, TSZ, TSZ);
-            dyn.update(false);
+            dyn.update(true);
             console.log(`[Textura cargada]: textures/${fileName}`);
         };
         img.src = `textures/${fileName}`;
@@ -456,12 +457,12 @@ function createAtlas(scene){
 // ════════════════════════════════════════════════
 const CHUNK_SIZE=16;
 const FACES=[
-    {dir:[0,1,0], n:[0,1,0], key:'top',    v:[[0,1,0],[0,1,1],[1,1,1],[1,1,0]]},
-    {dir:[0,-1,0],n:[0,-1,0],key:'bottom', v:[[0,0,1],[0,0,0],[1,0,0],[1,0,1]]},
-    {dir:[0,0,1], n:[0,0,1], key:'side',   v:[[0,0,1],[1,0,1],[1,1,1],[0,1,1]]},
-    {dir:[0,0,-1],n:[0,0,-1],key:'side',   v:[[1,0,0],[0,0,0],[0,1,0],[1,1,0]]},
-    {dir:[1,0,0], n:[1,0,0], key:'side',   v:[[1,0,1],[1,0,0],[1,1,0],[1,1,1]]},
-    {dir:[-1,0,0],n:[-1,0,0],key:'side',  v:[[0,0,0],[0,0,1],[0,1,1],[0,1,0]]},
+    {dir:[0,1,0], n:[0,1,0], key:'top',    v:[[0,1,0],[0,1,1],[1,1,1],[1,1,0]], uvs:[[0,0], [0,1], [1,1], [1,0]]},
+    {dir:[0,-1,0],n:[0,-1,0],key:'bottom', v:[[0,0,1],[0,0,0],[1,0,0],[1,0,1]], uvs:[[0,0], [0,1], [1,1], [1,0]]},
+    {dir:[0,0,1], n:[0,0,1], key:'side',   v:[[0,0,1],[1,0,1],[1,1,1],[0,1,1]], uvs:[[1,0], [0,0], [0,1], [1,1]]},
+    {dir:[0,0,-1],n:[0,0,-1],key:'side',   v:[[1,0,0],[0,0,0],[0,1,0],[1,1,0]], uvs:[[1,0], [0,0], [0,1], [1,1]]},
+    {dir:[1,0,0], n:[1,0,0], key:'side',   v:[[1,0,1],[1,0,0],[1,1,0],[1,1,1]], uvs:[[1,0], [0,0], [0,1], [1,1]]},
+    {dir:[-1,0,0],n:[-1,0,0],key:'side',  v:[[0,0,0],[0,0,1],[0,1,1],[0,1,0]], uvs:[[1,0], [0,0], [0,1], [1,1]]},
 ];
 
 class Chunk{
@@ -498,11 +499,13 @@ class Chunk{
 
                 const tid=atlas[f.key];
                 const{u0,u1,v0,v1}=tileUV(tid);
-                for(const[vx,vy,vz]of f.v){
+                for(let i=0; i<4; i++){
+                    const[vx,vy,vz] = f.v[i];
                     pos.push(ox+lx+vx,oy+ly+vy,oz+lz+vz);
                     nrm.push(...f.n);
+                    const [u, v] = f.uvs[i];
+                    uvs.push(u ? u1 : u0, v ? v1 : v0);
                 }
-                uvs.push(u0,v0, u0,v1, u1,v1, u1,v0);
                 idx.push(vc,vc+1,vc+2, vc,vc+2,vc+3);
                 vc+=4;
             }
